@@ -1,6 +1,7 @@
 mkdir -p build
 mkdir -p build/GSMR
 mkdir -p build/GSMR_web
+mkdir -p build/GSMR_web/static/img
 
 cp -r ./GSMR build/
 cp -r ./template/* build/GSMR_web/
