@@ -6,7 +6,7 @@
 * [nodejs](https://nodejs.org/en/download/)
 * [wkhtmltopdf](https://wkhtmltopdf.org/downloads.html)
 
-These packages have to be installed once.
+These packages have to be installed once. The build process has to be done in Mac or Linux. **No Windows support currently**
 
 ## Install
 ```
