@@ -1,0 +1,19 @@
+{
+  "name": "gsmr_doc",
+  "version": "1.0.5",
+  "description": "Make document for GSMR",
+  "main": "",
+  "scripts": {
+    "build": "sh build.sh",
+    "initR": "sh initR.sh"
+  },
+  "keywords": [
+    "GSMR"
+  ],
+  "author": "Zhili",
+  "license": "GPL",
+  "devDependencies": {
+    "base64-to-image": "^1.0.2",
+    "fs": "0.0.1-security"
+  }
+}

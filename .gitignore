@@ -1,0 +1,10 @@
+.*/
+.*
+build/
+!.gitignore
+!.gitkeep
+!.gitattributes
+node_modules
+GSMR/man
+GSMR/NAMESPACE
+
