@@ -359,6 +359,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
         bzx = bzx[remain_index2]; bzx_se = bzx_se[remain_index2]; 
         bzy = bzy[remain_index2]; bzy_se = bzy_se[remain_index2];
         ldrho = ldrho[remain_index2,remain_index2];
+        remain_index <- remain_index2
     }
     # do the SMR test with multiple instruments
     message("Computing estimate of bxy at each instrument.")
