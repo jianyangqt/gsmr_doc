@@ -34,16 +34,26 @@ h3 {
     font-size: 19px;
 }
 
+.link_list {
+    font-size: 18px;
+    line-height: 2.0;
+}
+
 h4 {
     font-size: 16px;
 }
 
+.kwd {
+    color: brown;
+}
+
 #toc {
-    margin-left: 16px;
+    margin-left: 12px;
     font-size: 11px;
     line-height: 1;
     margin-top: 10px;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: scroll;
 }
 
 @media (max-width: 768px) {
@@ -56,6 +66,12 @@ h4 {
 @media print {
     .page-header {
         display: none !important;
+    }
+    #content {
+        display: block !important;
+    }
+    #show {
+        display: none;
     }
 }
 

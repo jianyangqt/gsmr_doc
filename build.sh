@@ -27,6 +27,7 @@ mv GSMR/vignettes/GSMR-intro.html GSMR_web/
 node ../parseDoc.js
 sed "s/\${ver}/${ver}/g" ./GSMR_web/index.html > ./GSMR_web/index.html.tmp
 mv ./GSMR_web/index.html.tmp ./GSMR_web/index.html
+npm run mini
 
 wkhtmltopdf --zoom 10 ./GSMR_web/index.html ../previous/package/gsmr_doc_${ver}.pdf
 

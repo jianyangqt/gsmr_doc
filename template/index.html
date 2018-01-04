@@ -15,15 +15,15 @@
 </head>
 
 <body>
-    <div class="page-header">
+    <div class="page-header" id="PAGE-header" style="height:auto;padding:0">
         <div class="container-fluid">
             <p class="TOP_head">&nbsp;</p>
-            <div class="span6">
+            <div class="span5">
                 <h1>&nbsp;GSMR</h1>
-                <p class="TOP_head">Generalised Summary-data-based Mendelian Randomisation</p>
+                <p class="TOP_head">Generalised Summary-data-based Mendelian Randomisaion</p>
             </div>
-            <div class="span6">
-                <ul class="nav nav-pills">
+            <div class="span7">
+                <ul class="nav nav-pills" style="margin:0">
                     <li role="presentation"><a href="http://cnsgenomics.com/software/gcta/">GCTA</a></li>
                     <li role="presentation"><a href="http://cnsgenomics.com/software/smr/">SMR</a></li>
                     <li role="presentation" class="active"><a href="http://cnsgenomics.com/software/gsmr/">GSMR</a></li>
@@ -35,7 +35,6 @@
 
             </div>
         </div>
-
     </div>
     <div class="container-fluid">
         <div class="row-fluid">
@@ -59,7 +58,6 @@
 
     <script>
         $(function() {
-
             var toc = $("#toc").tocify({
                 selectors: "h2, h3"
             }).data("toc-tocify");
@@ -67,7 +65,7 @@
                 showEffect: "fadeIn",
                 scrollHistory: false,
                 extendPage: true,
-                scrollTo: 80
+                scrollRef: "#PAGE-header"
             });
             hljs.initHighlightingOnLoad();
         });

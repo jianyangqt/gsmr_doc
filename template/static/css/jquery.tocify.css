@@ -7,8 +7,8 @@
 /* The Table of Contents container element */
 
 .tocify {
-    width: 20%;
-    max-height: 90%;
+    width: 22%;
+    max-height: 85%;
     overflow: auto;
     margin-left: 2%;
     position: fixed;
@@ -27,7 +27,7 @@
     margin: 0;
     padding: 0;
     border: none;
-    line-height: 30px;
+    line-height: 1.5;
 }
 
 
@@ -36,6 +36,7 @@
 .tocify-header {
     text-indent: 10px;
     font-weight: bold;
+    font-size: 13px;
 }
 
 

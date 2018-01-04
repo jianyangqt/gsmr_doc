@@ -5,7 +5,8 @@
   "main": "",
   "scripts": {
     "build": "sh build.sh",
-    "initR": "sh initR.sh"
+    "initR": "sh initR.sh",
+    "mini": "uglifyjs ./build/GSMR_web/static/js/jquery.tocify.min.js -o ./build/GSMR_web/static/js/jquery.tocify.min.js -c -m"
   },
   "keywords": [
     "GSMR"
@@ -14,6 +15,7 @@
   "license": "GPL-3.0",
   "devDependencies": {
     "base64-to-image": "^1.0.2",
-    "fs": "0.0.1-security"
+    "fs": "0.0.1-security",
+    "uglify-js": "^3.3.4"
   }
 }
