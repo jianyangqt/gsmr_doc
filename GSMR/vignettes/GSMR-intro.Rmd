@@ -16,7 +16,7 @@ The **gsmr** R-package implements the GSMR (Generalised Summary-data-based Mende
 
 ### Citation
 
-Zhu, Z. et al. Causal associations between risk factors and common diseases inferred from GWAS summary data. Nature Communications, in press. An early verison of the manuscript is available at [bioRxiv, 168674](https://www.biorxiv.org/content/early/2017/07/26/168674).
+1) Zhu, Z. et al. (2018) Causal associations between risk factors and common diseases inferred from GWAS summary data. Nat. Commun. 9, 224 (https://www.nature.com/articles/s41467-017-02317-2).
 
 ## Installation
 
