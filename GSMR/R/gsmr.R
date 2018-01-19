@@ -130,6 +130,48 @@ check_vec_elements_eq <- function(dim_vec){
 }
 
 
+
+# ************************************************** #
+#                     LD pruning                     #
+# ************************************************** #
+# LD pruning, removing pairs of SNPs that LD r2 > threshold
+# return index: the index be used for further analysis
+snp_ld_prune = function(ldrho, ld_r2_thresh) {
+    # initialization
+    nsnp = dim(ldrho)[1]
+    diag(ldrho) = 0
+    ldrho[upper.tri(ldrho)]=0
+    include_id = c(1:nsnp)
+
+    # save the index which have ld r^2 > threshold
+    indx = which(ldrho^2>ld_r2_thresh, arr.ind=T)
+    indx1 = as.numeric(indx[,2])
+    indx2 = as.numeric(indx[,1])
+    slct_indx = c(indx1, indx2)
+    indxbuf = unique(sort(slct_indx))
+
+    # count how many SNPs in high LD
+    nproc = length(indxbuf)
+    n_slct_snp = as.numeric()
+    for( i in 1 : nproc) {
+        n_slct_snp[i] = length(which(slct_indx==indxbuf[i]))
+    }  
+
+    # decide the index to remove
+    nproc = length(indx1)
+    if(nproc==0) return(NULL);
+    for( i in 1 : nproc ) {
+        n1 = n_slct_snp[which(indxbuf==indx1[i])]
+        n2 = n_slct_snp[which(indxbuf==indx2[i])]
+        if(n1 < n2) {
+            t = indx1[i]; indx1[i] = indx2[i]; indx2[i] = t
+        }
+    }
+    indx1 = unique(sort(indx1))
+    return(indx1)
+}
+
+
 # ************************************************** #
 #              Filter the summary data               #
 # ************************************************** #
@@ -137,55 +179,84 @@ check_vec_elements_eq <- function(dim_vec){
 # parameters see HEIDI or SMR_Multi functions
 # return index: the index be used for further analysis
 # NOTICE: the parameters will be revised in place after run!!!!! TAKE CARE
-filter_summdat <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, pvalue_thresh, fdr_thresh){
+filter_summdat <- function(snp_id, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, nsnps_thresh, pvalue_thresh, ld_r2_thresh, fdr_thresh){
     # make sure they are numeric numbers
     m = length(bzx)
     message("There are ", m, " SNPs in the dataset.")
     remain_index = seq(1,m)
+    snpIDp = as.character(snp_id);
     bZXp = as.numeric(as.character(bzx))
     seZXp = as.numeric(as.character(bzx_se));
     pZXp = as.numeric(as.character(bzx_pval));
     bZYp = as.numeric(as.character(bzy))
     seZYp = as.numeric(as.character(bzy_se));
     ldrhop = matrix(as.numeric(as.character(unlist(ldrho))), m, m)
-    # remove SNPs with missing SE
-    indx = which(!is.finite(seZXp) | !is.finite(seZYp))
+
+    # remove SNPs with missing value
+    na_snps=c()
+    indx = which(!is.finite(bZXp) | !is.finite(seZXp) | !is.finite(pZXp) | !is.finite(bZYp) | !is.finite(seZYp) | 
+                 is.na(bZXp) | is.na(seZXp) | is.na(pZXp) | is.na(bZYp) | is.na(seZYp))
     if(length(indx)>0) {
+        na_snps = snpIDp[indx];
         bZXp = bZXp[-indx]; seZXp = seZXp[-indx]; pZXp = pZXp[-indx];
         bZYp = bZYp[-indx]; seZYp = seZYp[-indx];
         ldrhop = ldrhop[-indx, -indx];
         remain_index = remain_index[-indx]
-        warning(length(indx), " SNPs were removed due to missing standard error.")
+        snpIDp = snpIDp[-indx] 
+        warning(length(indx), " SNPs were removed due to missing or infinite value.")
     }
     m = length(bZXp)
-    if(m == 0) stop("No SNPs were retained after removing SNPs with missing standard error.");
+    if(m < nsnps_thresh) stop(m, " SNPs were retained after removing SNPs with missing value. ", nsnps_thresh, " SNPs are required, not enough SNPs for the GSMR analysis.");
+
     # remove SNPs with very small SE
     indx = which(seZXp < eps | seZYp < eps )
     if(length(indx)>0) {
+        na_snps = c(na_snps, snpIDp[indx]);
         bZXp = bZXp[-indx]; seZXp = seZXp[-indx]; pZXp = pZXp[-indx];
         bZYp = bZYp[-indx]; seZYp = seZYp[-indx];
         ldrhop = ldrhop[-indx, -indx];
         remain_index = remain_index[-indx]
+        snpIDp = snpIDp[-indx]
         warning(length(indx), " SNPs were removed due to extremely small standard error.")
     }
     m = length(bZXp)
-    if(m == 0) stop("No SNPs were retained after removing SNPs with extremely small standard error.");
+    if(m < nsnps_thresh) stop(m, " SNPs were retained after removing SNPs with extremely small standard error. ", nsnps_thresh, "SNPs are required, not enough SNPs for the GSMR analysis.");
+
     # remove SNPs with missing LD
     indx = which(is.na(ldrhop[upper.tri(ldrhop)]))
     if(length(indx) > 0)
         stop(paste("LDs for ", length(indx), " pairs of SNPs are missing. Please check the MAF and the missing rate.", sep=""))
+
     # z score of bzx
+    weak_snps = c()
     indx = which(pZXp > pvalue_thresh)
     if(length(indx)>0) {
+        weak_snps = snpIDp[indx];
+        bZXp = bZXp[-indx]; seZXp = seZXp[-indx]; pZXp = pZXp[-indx];
+        bZYp = bZYp[-indx]; seZYp = seZYp[-indx];
+        ldrhop = ldrhop[-indx, -indx];
+        remain_index = remain_index[-indx];
+        snpIDp = snpIDp[-indx];
+        warning(length(indx), " SNPs were removed due to non-significant associations between instruments and risk factor.")
+    }
+    m = length(bZXp)
+    if(m < nsnps_thresh) stop(m, " SNPs were retained after removing non-significant SNPs. ", nsnps_thresh, " SNPs are required, not enough SNPs for the GSMR analysis.");
+
+    # check LD r
+    linkage_snps = c()
+    indx = snp_ld_prune(ldrhop, ld_r2_thresh)
+    if(length(indx) > 0) {
+        linkage_snps = snpIDp[indx]
         bZXp = bZXp[-indx]; seZXp = seZXp[-indx]; pZXp = pZXp[-indx];
         bZYp = bZYp[-indx]; seZYp = seZYp[-indx];
         ldrhop = ldrhop[-indx, -indx];
         remain_index = remain_index[-indx]
-        warning(length(indx), " SNPs were removed due to non-significant associations between instruments and risk factor.")
+        snpIDp = snpIDp[-indx]
+        warning("There were SNPs in high LD. After LD pruning with a LD r2 threshold of ", ld_r2_thresh, ", ", length(indx), " SNPs were removed.")
     }
     m = length(bZXp)
-    if(m == 0) stop("No SNPs were retained after removing non-significant SNPs.");
-    message(length(remain_index), " SNPs were retained with filtering of weak instruments.")
+    if(m < nsnps_thresh) stop(m, " SNPs were retained after removing SNPs in LD. ", nsnps_thresh, " SNPs are required, not enough SNPs for the GSMR analysis.");
+    
     # update LD correlation matrix
     var_rho = 1/n_ref
     pval_rho = pchisq(ldrhop[upper.tri(ldrhop)]^2/var_rho, 1, lower.tail=F)
@@ -194,6 +265,9 @@ filter_summdat <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, pva
     qval_mat[upper.tri(qval_mat)] = qval_rho; qval_mat = t(qval_mat); qval_mat[upper.tri(qval_mat)] = qval_rho;
     rho_index = which(qval_mat >= fdr_thresh, arr.ind=T)
     ldrhop[rho_index] = 0 
+
+    message(length(remain_index), " SNPs were retained after filtration.")
+
     # replace the parameters in place
     eval.parent(substitute(bzx <- bZXp))
     eval.parent(substitute(bzy <- bZYp))
@@ -201,7 +275,7 @@ filter_summdat <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, pva
     eval.parent(substitute(bzy_se <- seZYp))
     eval.parent(substitute(bzx_pval <- pZXp))
     eval.parent(substitute(ldrho <- ldrhop))
-    return(remain_index)
+    return(list(remain_index=remain_index, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps))
 }
 
 # ************************************************** #
@@ -235,6 +309,12 @@ std_effect <- function(snp_freq, b, se, n) {
     if (!check_vec_elements_eq(len_vec)){
         stop("Lengths of input variables are different. Please double check.");
     }
+  
+    # check missing values
+    indx = which(!is.finite(snp_freq) | !is.finite(b) | !is.finite(se) | !is.finite(n) | is.na(snp_freq) | is.na(b) | is.na(se) | is.na(n))
+    if (length(indx)>0) {
+        stop("There are ", length(indx), " SNPs with missing or infinite value. Please double check.");
+    } 
 
     # make sure they are numeric numbers
     snpfreq = as.numeric(as.character(snp_freq))
@@ -266,15 +346,16 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @param gwas_thresh threshold p-value to select instruments from GWAS for risk factor
 #' @param heidi_outlier_thresh threshold p-value to remove pleiotropic outliers (the default value is 0.01)
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
+#' @param ld_r2_thresh LD r2 threshold to remove correlated SNPs
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments
 #' @examples
 #' data("gsmr")
-#' filtered_index = heidi_outlier(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, 5e-8, 0.01, 10, 0.05)
+#' filtered_index = heidi_outlier(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, 5e-8, 0.01, 10, 0.1, 0.05)
 #'
-#' @return Retained index of genetic instruments
+#' @return Retained index of genetic instruments, SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 heidi_outlier <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid,
-                      n_ref, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_fdr_thresh=0.05) {
+                      n_ref, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_r2_thresh = 0.1, ld_fdr_thresh=0.05) {
     # Subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
     len2 = length(snpid)
@@ -290,14 +371,22 @@ heidi_outlier <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid,
     }
     message("HEIDI-outlier: ", length(bzx), " instruments loaded.")
     # filter dataset
-    remain_index <- filter_summdat(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, gwas_thresh, ld_fdr_thresh)
+    resbuf <- filter_summdat(snpid, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, nsnps_thresh, gwas_thresh, ld_r2_thresh, ld_fdr_thresh)
+    remain_index <- resbuf$remain_index; 
+    na_snps <- resbuf$na_snps; weak_snps <- resbuf$weak_snps; linkage_snps <- resbuf$linkage_snps 
     if(length(remain_index) < nsnps_thresh) {
       stop("HEIDI-outlier stopped because the number of instruments < ", nsnps_thresh, ".");
     }
     # Perform HEIDI-outlier
+    pleio_snps <- NULL
+    remain_index_tmp <- remain_index
     remain_index <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, heidi_outlier_thresh, remain_index)
+    if(length(remain_index) < length(remain_index_tmp)) {
+        removed_index <- remain_index_tmp[-match(remain_index, remain_index_tmp)]
+        pleio_snps <- snpid[removed_index]
+    }
     message(length(remain_index), " SNPs were retained by HEIDI-outlier test.")
-    return(remain_index)
+    return(list(remain_index=remain_index, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
 }
 
 # ************************************************** #
@@ -318,15 +407,16 @@ heidi_outlier <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid,
 #' @param gwas_thresh threshold p-value to select instruments from GWAS for risk factor
 #' @param heidi_outlier_thresh HEIDI-outlier threshold 
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
+#' @param ld_r2_thresh LD r2 threshold to remove correlated SNPs
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments 
 #' @examples
 #' data("gsmr")
-#' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 10, 0.05) 
+#' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 10, 0.1, 0.05) 
 #'
-#' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval) and SNP index (used_index).
+#' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval), SNP index (used_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
-                ldrho, snpid, n_ref, heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_fdr_thresh=0.05) {
+                ldrho, snpid, n_ref, heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.1, ld_fdr_thresh=0.05) {
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
     len2 = length(snpid)
@@ -342,10 +432,13 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
     }
     message("GSMR analysis: ", length(bzx), " instruments loaded.")
     # filter dataset
-    remain_index <- filter_summdat(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, gwas_thresh, ld_fdr_thresh)
+    resbuf <- filter_summdat(snpid, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, nsnps_thresh, gwas_thresh, ld_r2_thresh, ld_fdr_thresh)
+    remain_index<-resbuf$remain_index;
+    na_snps<-resbuf$na_snps; weak_snps<-resbuf$weak_snps; linkage_snps<-resbuf$linkage_snps;
     if(length(remain_index) < nsnps_thresh) {
       stop("GSMR analysis stopped because the number of instruments < ", nsnps_thresh, ".");
     }
+    pleio_snps=NULL;
     if(heidi_outlier_flag) {
         # Perform HEIDI-outlier
         remain_index2 <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, heidi_outlier_thresh, remain_index)
@@ -354,12 +447,18 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
         } else {
             message(length(remain_index2), " SNPs were retained by HEIDI-outlier test.") 
         }
+        # Save pleiotropic SNPs 
+        if(length(remain_index2) < length(remain_index)) {
+            removed_index <- remain_index[-match(remain_index2, remain_index)]
+            pleio_snps <- snpid[removed_index]
+        }
         # Update estimates
+        remain_index2_tmp = remain_index2
         remain_index2 = match(remain_index2, remain_index)
         bzx = bzx[remain_index2]; bzx_se = bzx_se[remain_index2]; 
         bzy = bzy[remain_index2]; bzy_se = bzy_se[remain_index2];
         ldrho = ldrho[remain_index2,remain_index2];
-        remain_index <- remain_index2
+        remain_index <- remain_index2_tmp
     }
     # do the SMR test with multiple instruments
     message("Computing estimate of bxy at each instrument.")
@@ -385,8 +484,8 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
     chisqbXY_GLS = bXY_GLS^2/varbXY_GLS
     pbXY_GLS = pchisq(chisqbXY_GLS, 1, lower.tail=F)
     message("GSMR analysis is completed.")
-    return(list(bxy=bXY_GLS, bxy_se=sqrt(varbXY_GLS), bxy_pval=pbXY_GLS,
-                used_index=remain_index))
+    return(list(bxy=bXY_GLS, bxy_se=sqrt(varbXY_GLS), bxy_pval=pbXY_GLS, used_index=remain_index,
+                na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
 }
 
 # ************************************************** #
@@ -408,29 +507,36 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
 #' @param gwas_thresh threshold p-value to select  instruments from GWAS for risk factor
 #' @param heidi_outlier_thresh HEIDI-outlier threshold 
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
+#' @param ld_r2_thresh LD r2 threshold to remove correlated SNPs
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments
 #' @examples
 #' data("gsmr")
-#' gsmr_result = bi_gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, gsmr_data$bzy_pval, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 10, 0.05) 
+#' gsmr_result = bi_gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, gsmr_data$bzy_pval, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 10, 0.1, 0.05) 
 #'
-#' @return Estimate of causative effect of risk factor on disease (forward_bxy), the corresponding standard error (forward_bxy_se), p-value (forward_bxy_pval) and SNP index (forward_index), and estimate of causative effect of disease on risk factor (reverse_bxy), the corresponding standard error (reverse_bxy_se), p-value (reverse_bxy_pval) and SNP index (reverse_index).
+#' @return Estimate of causative effect of risk factor on disease (forward_bxy), the corresponding standard error (forward_bxy_se), p-value (forward_bxy_pval) and SNP index (forward_index), and estimate of causative effect of disease on risk factor (reverse_bxy), the corresponding standard error (reverse_bxy_se), p-value (reverse_bxy_pval), SNP index (reverse_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval,
-                ldrho, snpid, n_ref, heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_fdr_thresh=0.05) {
+                ldrho, snpid, n_ref, heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.1, ld_fdr_thresh=0.05) {
     ## Forward GSMR
     message("Forward GSMR analysis...")   
-    gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_fdr_thresh)
+    gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
     bxy1 = gsmr_result$bxy; bxy1_se = gsmr_result$bxy_se; bxy1_pval = gsmr_result$bxy_pval;
     bxy1_index = gsmr_result$used_index;
+    na_snps = gsmr_result$na_snps; weak_snps = gsmr_result$weak_snps; linkage_snps = gsmr_result$linkage_snps; pleio_snps = gsmr_result$pleio_snps;
 
     ## Reverse GSMR
     message("Reverse GSMR analysis...")           
-    gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_fdr_thresh)
+    gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
     bxy2 = gsmr_result$bxy; bxy2_se = gsmr_result$bxy_se; bxy2_pval = gsmr_result$bxy_pval;
     bxy2_index = gsmr_result$used_index;
+    na_snps = c(na_snps, gsmr_result$na_snps); 
+    weak_snps = c(weak_snps, gsmr_result$weak_snps); 
+    linkage_snps = c(linkage_snps, gsmr_result$linkage_snps);
+    pleio_snps = c(pleio_snps, gsmr_result$pleio_snps);
     return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se, 
                 forward_bxy_pval=bxy1_pval, forward_index=bxy1_index,
                 reverse_bxy=bxy2, reverse_bxy_se=bxy2_se,             
-                reverse_bxy_pval=bxy2_pval, reverse_index=bxy2_index))
+                reverse_bxy_pval=bxy2_pval, reverse_index=bxy2_index,
+                na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
 }
 

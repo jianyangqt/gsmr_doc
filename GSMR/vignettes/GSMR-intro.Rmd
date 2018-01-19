@@ -34,6 +34,8 @@ This online document has been integrated in the gsmr R-package, we can check tha
 
 ### Update log
 
+V1.0.6 ([gmr_1.0.6.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.6.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.6.pdf), 13 Dec. 2017): Remove SNPs in high LD and return the filtered SNPs.
+
 V1.0.5 ([gmr_1.0.5.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.5.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.5.pdf), 13 Dec. 2017): Improved the approximation of the sampling covariance matrix.
  
 V1.0.4 ([gsmr_1.0.4.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.4.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.4.pdf), 6 Nov 2017): Add the bi-directional GSMR analysis. The HEIDI-outlier analysis has been integrated in the GSMR analysis by default.
@@ -142,12 +144,17 @@ gwas_thresh = 5e-8    # GWAS threshold to select SNPs as the instruments for the
 heidi_outlier_thresh = 0.01    # HEIDI-outlier threshold
 nsnps_thresh = 10   # the minimum number of instruments required for the GSMR analysis
 heidi_outlier_flag = T    # flag for HEIDI-outlier analysis
+ld_r2_thresh = 0.1    # LD r2 threshold to remove SNPs in high LD
 ld_fdr_thresh = 0.05   # FDR threshold to remove the chance correlations between SNP instruments
-gsmr_results = gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_fdr_thresh)    # GSMR analysis 
+gsmr_results = gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)    # GSMR analysis 
 cat("Effect of exposure on outcome: ",gsmr_results$bxy)
 cat("Standard error of bxy: ",gsmr_results$bxy_se)
 cat("P-value of bxy: ", gsmr_results$bxy_pval)
 cat("Used index to GSMR analysis: ", gsmr_results$used_index[1:5], "...")
+cat("Number of SNPs with missing value: ", length(gsmr_results$na_snps))
+cat("Number of non-significant SNPs: ", length(gsmr_results$weak_snps))
+cat("Number of SNPs in LD: ", length(gsmr_results$linkage_snps))
+cat("Number of pleiotropic SNPs: ", length(gsmr_results$pleio_snps))
 ```
 
 ### 4. HEIDI-outlier analysis
@@ -157,7 +164,8 @@ The estimate of causal effect of risk factor on disease can be biased by pleiotr
 The HEIDI-outlier analysis has been integrated in the GSMR analysis above (with the heidi_outlier_flag and heidi_outlier_thresh flags). It can also be performed separately following the example below.
 
 ```{r message=FALSE, warning=FALSE}
-filtered_index = heidi_outlier(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_fdr_thresh) # perform HEIDI-outlier analysis
+heidi_results = heidi_outlier(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh) # perform HEIDI-outlier analysis
+filtered_index = heidi_results$remain_index
 filtered_gsmr_data = gsmr_data[filtered_index,]   # select data passed HEIDI-outlier filtering
 
 filtered_snp_id = snp_coeff_id[filtered_index]   # select SNPs that passed HEIDI-outlier filtering
@@ -174,7 +182,7 @@ In the example above, `r dim(gsmr_data[gsmr_data$bzx_pval <= 5e-8, ])[1] - dim(f
 The script below runs bi-directional GSMR analyses, i.e. a forward-GSMR analysis as described above and a reverse-GSMR analysis that uses SNPs associated with the disease (e.g. at p < 5e-8) as the instruments to test for putative causal effect of the disease on the risk factor.
 
 ```{r message=FALSE, warning=FALSE}
-gsmr_results = bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, ld_fdr_thresh)    # GSMR analysis 
+gsmr_results = bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)    # GSMR analysis 
 cat("Effect of risk factor on disease: ",gsmr_results$forward_bxy)
 cat("Standard error of bxy from the forward-GSMR analysis: ",gsmr_results$forward_bxy_se)
 cat("P-value of bxy from the forward-GSMR analysis: ", gsmr_results$forward_bxy_pval)
