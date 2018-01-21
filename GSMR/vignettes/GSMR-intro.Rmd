@@ -165,11 +165,11 @@ The HEIDI-outlier analysis has been integrated in the GSMR analysis above (with 
 
 ```{r message=FALSE, warning=FALSE}
 heidi_results = heidi_outlier(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh) # perform HEIDI-outlier analysis
+cat("Number of SNPs in LD: ", length(gsmr_results$linkage_snps))
+cat("Number of pleiotropic SNPs: ", length(heidi_results$pleio_snps))
 filtered_index = heidi_results$remain_index
 filtered_gsmr_data = gsmr_data[filtered_index,]   # select data passed HEIDI-outlier filtering
-
 filtered_snp_id = snp_coeff_id[filtered_index]   # select SNPs that passed HEIDI-outlier filtering
-
 dim(filtered_gsmr_data)
 # number of SNPs in the gmsr_data with bzx_pval < 5e-8
 dim(gsmr_data[gsmr_data$bzx_pval < 5e-8, ])
