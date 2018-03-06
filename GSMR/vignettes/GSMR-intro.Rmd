@@ -64,7 +64,7 @@ This is the input format for the GSMR analysis. In this data set, there are `r n
 * SNP: the genetic instrument  
 * a1: effect allele  
 * a2: the other allele  
-* freq: frequency of a1  
+* a1_freq: frequency of a1  
 * bzx: the effect size of a1 on risk factor  
 * bzx_se: standard error of bzx  
 * bzx_pval: p value for bzx  
@@ -120,7 +120,7 @@ ldrho[1:5,1:5]
 This is an optional process. If the risk factor was not standardised in GWAS, the effect sizes can be scaled using the method below. Note that this process requires allele frequencies, z-statistics and sample size. After scaling, bzx is interpreted as the per-allele effect of a SNP on the exposure in standard deviation units.
 
 ```{r message=FALSE, warning=FALSE}
-snpfreq = gsmr_data$freq             # minor allele frequencies of the SNPs
+snpfreq = gsmr_data$a1_freq             # allele frequencies of the SNPs
 bzx = gsmr_data$bzx     # effects of the instruments on risk factor
 bzx_se = gsmr_data$bzx_se       # standard errors of bzx
 bzx_n = gsmr_data$bzx_n          # GWAS sample size for the risk factor
@@ -193,7 +193,7 @@ cat("Standard error of bxy in the reverse-GSMR analysis: ",gsmr_results$reverse_
 cat("P-value of bxy in the reverse-GSMR analysis: ", gsmr_results$reverse_bxy_pval)
 ```
 
-### 6. Visulization
+### 6. Visualization
 
 ```{r, fig.width=6, fig.height=6.5}
 effect_col = colors()[75]

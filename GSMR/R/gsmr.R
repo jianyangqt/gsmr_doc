@@ -290,7 +290,7 @@ filter_summdat <- function(snp_id, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_
 #' @param n vector, per-SNP sample sizes for GWAS of the risk factor
 #' @examples
 #' data("gsmr")
-#' std_effects = std_effect(gsmr_data$freq, gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_n)
+#' std_effects = std_effect(gsmr_data$a1_freq, gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_n)
 #'
 #' @return Standardised effect (b) and standard error (se)
 #' @export
