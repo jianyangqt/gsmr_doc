@@ -19,6 +19,37 @@ check_element <- function(vals, argue) {
 }
 
 # ************************************************** #
+#          convert variable nameto string            #
+# ************************************************** #
+var2string <- function(argue) {
+    deparse(substitute(argue))
+}
+
+# ************************************************** #
+#         check parameter is defined or not          #
+# ************************************************** #
+check_variable <- function(argue) {
+    if(!exists(argue)) {
+        stop(argue, " is not defined.")
+    }
+}
+
+# ************************************************** #
+#             Find the top SNP                       #
+# ************************************************** #
+maxid_bxy <- function(bzx, bzx_pval, bzy) {
+    bxy = bzy/bzx
+    bxy_q = quantile(bxy, probs = seq(0, 1, 0.2))
+    min_bxy = as.numeric(bxy_q[3]); max_bxy = as.numeric(bxy_q[4]);
+    slctindx = which(bxy <= max_bxy & bxy >= min_bxy)
+    if(length(slctindx)==0) {
+      stop("The top SNP for the HEIDI-outlier analysis is missing. None SNPs are in the third quintile of the distribution of bxy.");
+    }
+    refid = slctindx[which.min(bzx_pval[slctindx])]
+    return(refid)
+}
+
+# ************************************************** #
 #       variance-covariane matrix of bXY             #
 # ************************************************** #
 cov_bXY <- function(bzx, bzx_se, bzy, bzy_se, ldrho) {
@@ -37,20 +68,36 @@ cov_bXY <- function(bzx, bzx_se, bzy, bzy_se, ldrho) {
 }
 
 # ************************************************** #
+#    variance-covariane matrix of bXY (top snp)      #
+# ************************************************** #
+cov_bXY_topsnp <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho) {
+    maxid = maxid_bxy(bzx, bzx_pval, bzy)
+    bXY = bzy[maxid] / bzx[maxid]
+    zscoreZX = bzx / bzx_se
+    nsnp = dim(ldrho)[1]
+    covbXY = diag(nsnp)
+    if(nsnp>1) { 
+        zszxij = zscoreZX%*%t(zscoreZX)
+        bxyij = bXY^2
+        sezyij = bzy_se%*%t(bzy_se)
+        bzxij = bzx%*%t(bzx)
+        covbXY = ldrho*sezyij/bzxij + ldrho*bxyij/zszxij
+    }
+    return(covbXY)
+}
+
+# ************************************************** #
 #                 HEIDI test                         #
 # ************************************************** #
 #' @importFrom survey pchisqsum
-heidi <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, 
-                 heidi_thresh = pchisq(10, 1, lower.tail=F),
-                 nSNPs_thresh=10, maxid=integer(0) ) {
+heidi <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
+                 ldrho, maxid=integer(0)) {
 
     remain_index = seq(1, length(bzx))
     m = length(remain_index)
 
     # recaculate the zscore_ZX for vector has been changed
-    zscore_ZX = bzx / bzx_se
     bXY = bzy / bzx
-    seSMR = sqrt( (bzy_se^2*bzx^2 + bzx_se^2*bzy^2) / bzx^4 )
     # remap the maxid according to filtered data
     maxid = which(remain_index==maxid)
     if(length(maxid) != 1) {
@@ -94,6 +141,55 @@ heidi <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho,
 }
 
 # ************************************************** #
+#            Hotelling-based HEIDI test              #
+# ************************************************** #
+
+heidi_hotelling <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, maxid=integer(0)) {
+
+    remain_index = seq(1, length(bzx))
+    m = length(remain_index)
+
+    # recaculate the zscore_ZX for vector has been changed
+    bXY = bzy / bzx
+    # remap the maxid according to filtered data
+    maxid = which(remain_index==maxid)
+    if(length(maxid) != 1) {
+        stop("The top SNP for the HEIDI analysis is missing.")
+    }
+    # diff = bXY_top - bXY_-i
+    dev = bXY[maxid] - bXY[-maxid]
+    # v matrix
+    covbXY = cov_bXY_topsnp(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho)
+    tmp1 = diag(covbXY)[maxid]
+    tmp2 = covbXY[-maxid, -maxid]
+    tmp3 = covbXY[maxid, -maxid]
+    vdev = tmp1 + tmp2 - tmp3
+    vdev = t(t(vdev) - tmp3)
+    diag(vdev) = diag(vdev) + eps
+    if(m>2) {
+        # Hotelling test
+        # Inverse matrix
+        resbuf = eigen(vdev, symmetric=TRUE)
+        eval = as.numeric(resbuf$values)
+        evec = resbuf$vectors
+        if(min(abs(eval)) < eps) {
+            stop("The variance-covariance matrix for heterogeneity of bxy is not invertible!");
+        }
+        vdev_inv = evec%*%diag(1/eval)%*%t(evec) 
+        chisq_dev = dev%*%vdev_inv%*%dev
+        pHet = pchisq(chisq_dev, df = (m-1), lower.tail=F)
+    } else {
+        # variance of difference
+        vardev = diag(covbXY)[-maxid] + tmp1 - 2*tmp3
+        vardev = vardev + eps
+        chisq_dev = dev^2 / vardev
+        pHet = pchisq(chisq_dev, 1, lower.tail=F)
+    }
+
+    return(list(pheidi=pHet, nsnps=m))
+}
+
+# ************************************************** #
 #          Iterations for HEIDI-ouliter              #
 # ************************************************** #
 
@@ -111,15 +207,16 @@ heidi_outlier_iter <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_t
     refid = slctindx[which.min(bzx_pval[slctindx])]
     pheidi = as.numeric()
     for( i in 1 : m ) {
-      if( i==refid ) next
+      if( i==refid ) { pheidi[i]=1; next;}
       heidi_result = heidi(bzx[c(refid,i)], bzx_se[c(refid,i)], bzx_pval[c(refid,i)],
                           bzy[c(refid,i)], bzy_se[c(refid,i)],
-                          ldrho[c(refid,i), c(refid,i)],
-                          gwas_thresh, 2, 1)
+                          ldrho[c(refid,i), c(refid,i)], 1)
       pheidi[i] = as.numeric(heidi_result$pheidi)
     }
-    remain_index = remain_index[sort(c(refid,which(pheidi>=heidi_thresh)))]
-    return(remain_index)
+    remain_index = remain_index[which(pheidi>=heidi_thresh)]
+    pleio_index = remain_index[which.min(pheidi)]
+
+    return(list(pleio_index=pleio_index, remain_index=remain_index, heidi_pval=pheidi))
 }
 
 
@@ -380,12 +477,69 @@ heidi_outlier <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid,
     # Perform HEIDI-outlier
     pleio_snps <- NULL
     remain_index_tmp <- remain_index
-    remain_index <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, heidi_outlier_thresh, remain_index)
+    remain_index <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, heidi_outlier_thresh, remain_index)$remain_index
     if(length(remain_index) < length(remain_index_tmp)) {
         removed_index <- remain_index_tmp[-match(remain_index, remain_index_tmp)]
         pleio_snps <- snpid[removed_index]
     }
     message(length(remain_index), " SNPs were retained after the HEIDI-outlier analysis.")
+    return(list(remain_index=remain_index, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
+}
+
+heidi_outlier_hybrid <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid,
+                      n_ref, gwas_thresh=5e-8, global_heidi_thresh=0.05, indi_heidi_thresh = 0.01, 
+                      nsnps_thresh=10, ld_r2_thresh = 0.1, ld_fdr_thresh=0.05) {
+    # Subset of LD r matrix
+    len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
+    len2 = length(snpid)
+    len_vec <- c(len1, len2)
+    if (!check_vec_elements_eq(len_vec)){
+        stop(paste(len2 - len1, " SNPs are missing in the LD correlation matrix. Please check.", sep=""))
+    }
+    ldrho = ldrho[snpid, snpid]
+    # double check the counts
+    len_vec <- c(length(bzx),length(bzx_se),length(bzx_pval),length(bzy),length(bzy_se),dim(ldrho)[1],dim(ldrho)[2])
+    if (!check_vec_elements_eq(len_vec)){
+      stop("Lengths of the input vectors are different. Please check.");
+    } 
+    message("HEIDI-outlier: ", length(bzx), " instruments loaded.")
+    # filter dataset
+    resbuf <- filter_summdat(snpid, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, nsnps_thresh, gwas_thresh, ld_r2_thresh, ld_fdr_thresh)
+    remain_index <- resbuf$remain_index;
+    na_snps <- resbuf$na_snps; weak_snps <- resbuf$weak_snps; linkage_snps <- resbuf$linkage_snps
+    if(length(remain_index) < nsnps_thresh) {
+      stop("Not enough SNPs for the HEIDI-outlier analysis. At least ", nsnps_thresh, " SNPs are required. Note: this hard limit can be changed by the \"nsnp_thresh\".");
+    }
+    # Perform traditional HEIDI-outlier
+    pleio_snps <- NULL
+    pheidi <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, indi_heidi_thresh, remain_index)$heidi_pval
+    kept_index = which(pheidi>=indi_heidi_thresh)
+    if(length(kept_index) < nsnps_thresh)
+        stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " are required. Note: this hard limit can be changed by \"nsnps_thresh\".");
+    # Perform HEIDI-outlier iteratively
+    bzx2 = bzx[kept_index]; bzx2_se = bzx_se[kept_index]; bzx2_pval = bzx_pval[kept_index];
+    bzy2 = bzy[kept_index]; bzy2_se = bzy_se[kept_index]; ldrho2 = ldrho[kept_index,kept_index];
+    # Test the global HEIDI p-value
+    while(1) {
+        removed_index <- heidi_outlier_iter(bzx2, bzx2_se, bzx2_pval, bzy2, bzy2_se, ldrho2, gwas_thresh, indi_heidi_thresh, kept_index)$pleio_index
+        # Global HEIDI-test
+        refid = maxid_bxy(bzx2, bzx2_pval, bzy2)
+        pval_global_heidi = heidi_hotelling(bzx2, bzx2_se, bzx2_pval, bzy2, bzy2_se, ldrho2, maxid=refid )$pheidi
+        if(pval_global_heidi >= global_heidi_thresh) break;
+        kept_index = kept_index[-match(removed_index, kept_index)]
+        bzx2 = bzx[kept_index]; bzx2_se = bzx_se[kept_index]; bzx2_pval = bzx_pval[kept_index];
+        bzy2 = bzy[kept_index]; bzy2_se = bzy_se[kept_index]; ldrho2 = ldrho[kept_index,kept_index];
+    }
+    message(length(kept_index), " SNPs were retained after the HEIDI-outlier analysis.")
+    if(length(kept_index) < nsnps_thresh) 
+        stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " are required. Note: this hard limit can be changed by \"nsnps_thresh\".");
+    # Save pleiotropic SNPs 
+    if(length(kept_index) < length(remain_index)) {
+        removed_index <- remain_index[-kept_index]
+        pleio_snps <- snpid[removed_index]
+    }
+    # Update estimates
+    remain_index = remain_index[kept_index]
     return(list(remain_index=remain_index, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
 }
 
@@ -415,8 +569,9 @@ heidi_outlier <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid,
 #'
 #' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval), SNP index (used_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
-gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
-                ldrho, snpid, n_ref, heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.1, ld_fdr_thresh=0.05) {
+gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
+                 heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, 
+                 nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
     len2 = length(snpid)
@@ -441,7 +596,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
     pleio_snps=NULL;
     if(heidi_outlier_flag) {
         # Perform HEIDI-outlier
-        remain_index2 <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, heidi_outlier_thresh, remain_index)
+        remain_index2 <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, heidi_outlier_thresh, remain_index)$remain_index
         if(length(remain_index2) < nsnps_thresh) {
             stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " are required. Note: this hard limit can be changed by \"nsnps_thresh\".");
         } else {
@@ -488,6 +643,94 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
                 na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
 }
 
+gsmr_v2_beta <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
+                 heidi_outlier_flag=T, gwas_thresh=5e-8, global_heidi_thresh=0.05, indi_heidi_thresh=0,
+                 nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
+    # subset of LD r matrix
+    len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
+    len2 = length(snpid)
+    len_vec <- c(len1, len2)
+    if (!check_vec_elements_eq(len_vec)){
+        stop(paste(len2 - len1, " SNPs are missing in the LD correlation matrix. Please check.", sep=""))
+    }
+    ldrho = ldrho[snpid, snpid]
+    # double check the counts
+    len_vec <- c(length(bzx),length(bzx_se),length(bzy),length(bzy_se),dim(ldrho)[1],dim(ldrho)[2])
+    if (!check_vec_elements_eq(len_vec)){
+        stop("Lengths of the input vectors are different. Please check.");
+    }
+    message("GSMR analysis: ", length(bzx), " instruments loaded.")
+    # filter dataset
+    resbuf <- filter_summdat(snpid, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_ref, nsnps_thresh, gwas_thresh, ld_r2_thresh, ld_fdr_thresh)
+    remain_index<-resbuf$remain_index;
+    na_snps<-resbuf$na_snps; weak_snps<-resbuf$weak_snps; linkage_snps<-resbuf$linkage_snps;
+    if(length(remain_index) < nsnps_thresh) {
+      stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " SNPs are required. Note: this hard limit can be changed by the \"nsnps_thresh\".");
+    }
+    pleio_snps=NULL;
+    if(heidi_outlier_flag) {
+        # Perform traditional HEIDI-outlier
+        pheidi <- heidi_outlier_iter(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, gwas_thresh, indi_heidi_thresh, remain_index)$heidi_pval
+        kept_index = which(pheidi>=indi_heidi_thresh)
+        if(length(kept_index) < nsnps_thresh)
+            stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " are required. Note: this hard limit can be changed by \"nsnps_thresh\".");
+        # Perform HEIDI-outlier iteratively
+        bzx2 = bzx[kept_index]; bzx2_se = bzx_se[kept_index]; bzx2_pval = bzx_pval[kept_index];
+        bzy2 = bzy[kept_index]; bzy2_se = bzy_se[kept_index]; ldrho2 = ldrho[kept_index,kept_index];
+        # Test the global HEIDI p-value
+        while(1) {
+            removed_index <- heidi_outlier_iter(bzx2, bzx2_se, bzx2_pval, bzy2, bzy2_se, ldrho2, gwas_thresh, indi_heidi_thresh, kept_index)$pleio_index
+            # Global HEIDI-test
+            refid = maxid_bxy(bzx2, bzx2_pval, bzy2)
+            pval_global_heidi = heidi_hotelling(bzx2, bzx2_se, bzx2_pval, bzy2, bzy2_se, ldrho2, maxid=refid )$pheidi
+            if(pval_global_heidi >= global_heidi_thresh) break;
+            kept_index = kept_index[-match(removed_index, kept_index)]
+            bzx2 = bzx[kept_index]; bzx2_se = bzx_se[kept_index]; bzx2_pval = bzx_pval[kept_index];
+            bzy2 = bzy[kept_index]; bzy2_se = bzy_se[kept_index]; ldrho2 = ldrho[kept_index,kept_index];
+        }
+        message(length(kept_index), " SNPs were retained after the HEIDI-outlier analysis.");
+        if(length(kept_index) < nsnps_thresh) 
+            stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " are required. Note: this hard limit can be changed by \"nsnps_thresh\".");
+        # Save pleiotropic SNPs 
+        if(length(kept_index) < length(remain_index)) {
+            removed_index <- remain_index[-kept_index]
+            pleio_snps <- snpid[removed_index]
+        }
+        # Update estimates
+        remain_index = remain_index[kept_index]
+        bzx = bzx2; bzx_se = bzx2_se;
+        bzy = bzy2; bzy_se = bzy2_se;
+        ldrho = ldrho2;
+    }
+    # do the SMR test with multiple instruments
+    message("Computing the estimate of bxy at each instrument.")
+    bXY = bzy/bzx
+
+    message("Estimating the variance-covariance matrix for bxy.")
+    covbXY = cov_bXY_topsnp(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho)
+    diag(covbXY) = diag(covbXY) + eps
+    # Eigen decomposition
+    resbuf = eigen(covbXY, symmetric=TRUE)
+    eval = as.numeric(resbuf$values)
+    evec = resbuf$vectors
+    if(min(abs(eval)) < eps) {
+      stop("The variance-covariance matrix for bxy is not invertible!");
+    }
+    covbXY_inv = evec%*%diag(1/eval)%*%t(evec)
+    message("Estimating bxy using all the instruments.")
+    vec_1 = rep(1, length(bzx))
+    num_1_v_1 = as.numeric(solve(t(vec_1)%*%covbXY_inv%*%vec_1))
+    vec_1_v = as.numeric(t(vec_1)%*%covbXY_inv)
+    bXY_GLS = num_1_v_1*vec_1_v%*%bXY
+    varbXY_GLS = num_1_v_1
+    chisqbXY_GLS = bXY_GLS^2/varbXY_GLS
+    pbXY_GLS = pchisq(chisqbXY_GLS, 1, lower.tail=F)
+    message("GSMR analysis is completed.")
+    return(list(bxy=bXY_GLS, bxy_se=sqrt(varbXY_GLS), bxy_pval=pbXY_GLS, used_index=remain_index,
+                na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
+}
+
+
 # ************************************************** #
 #            Bi-directional GSMR analysis            #
 # ************************************************** #
@@ -515,28 +758,65 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se,
 #'
 #' @return Estimate of causative effect of risk factor on disease (forward_bxy), the corresponding standard error (forward_bxy_se), p-value (forward_bxy_pval) and SNP index (forward_index), and estimate of causative effect of disease on risk factor (reverse_bxy), the corresponding standard error (reverse_bxy_se), p-value (reverse_bxy_pval), SNP index (reverse_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
-bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval,
-                ldrho, snpid, n_ref, heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.1, ld_fdr_thresh=0.05) {
+bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
+               heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01, 
+               nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
     ## Forward GSMR
     message("Forward GSMR analysis...")   
     gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
     bxy1 = gsmr_result$bxy; bxy1_se = gsmr_result$bxy_se; bxy1_pval = gsmr_result$bxy_pval;
     bxy1_index = gsmr_result$used_index;
-    na_snps = gsmr_result$na_snps; weak_snps = gsmr_result$weak_snps; linkage_snps = gsmr_result$linkage_snps; pleio_snps = gsmr_result$pleio_snps;
+    na_snps1 = gsmr_result$na_snps; weak_snps1 = gsmr_result$weak_snps; 
+    linkage_snps1 = gsmr_result$linkage_snps; pleio_snps1 = gsmr_result$pleio_snps;
 
     ## Reverse GSMR
     message("Reverse GSMR analysis...")           
     gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
     bxy2 = gsmr_result$bxy; bxy2_se = gsmr_result$bxy_se; bxy2_pval = gsmr_result$bxy_pval;
     bxy2_index = gsmr_result$used_index;
-    na_snps = c(na_snps, gsmr_result$na_snps); 
-    weak_snps = c(weak_snps, gsmr_result$weak_snps); 
-    linkage_snps = c(linkage_snps, gsmr_result$linkage_snps);
-    pleio_snps = c(pleio_snps, gsmr_result$pleio_snps);
+    na_snps2 = gsmr_result$na_snps; 
+    weak_snps2 = gsmr_result$weak_snps; 
+    linkage_snps2 = gsmr_result$linkage_snps;
+    pleio_snps2 = gsmr_result$pleio_snps;
     return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se, 
                 forward_bxy_pval=bxy1_pval, forward_index=bxy1_index,
                 reverse_bxy=bxy2, reverse_bxy_se=bxy2_se,             
                 reverse_bxy_pval=bxy2_pval, reverse_index=bxy2_index,
-                na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps, pleio_snps=pleio_snps))
+                forward_na_snps=na_snps1, forward_weak_snps=weak_snps1, 
+                forward_linkage_snps=linkage_snps1, forward_pleio_snps=pleio_snps1,
+                reverse_na_snps=na_snps2, reverse_weak_snps=weak_snps2, 
+                reverse_linkage_snps=linkage_snps2, reverse_pleio_snps=pleio_snps2))
+}
+
+bi_gsmr_v2_beta <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
+               heidi_outlier_flag=T, gwas_thresh=5e-8, global_heidi_thresh=0.05, indi_heidi_thresh=0.01, 
+               nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
+    ## Forward GSMR
+    message("Forward GSMR analysis...")
+    gsmr_result=gsmr_v2_beta(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, global_heidi_thresh, indi_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
+    bxy1 = gsmr_result$bxy; bxy1_se = gsmr_result$bxy_se; bxy1_pval = gsmr_result$bxy_pval;
+    bxy1_index = gsmr_result$used_index;
+    na_snps1 = gsmr_result$na_snps; 
+    weak_snps1 = gsmr_result$weak_snps; 
+    linkage_snps1 = gsmr_result$linkage_snps; 
+    pleio_snps1 = gsmr_result$pleio_snps;
+
+    ## Reverse GSMR
+    message("Reverse GSMR analysis...")
+    gsmr_result=gsmr_v2_beta(bzy, bzy_se, bzy_pval, bzx, bzx_se, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, global_heidi_thresh, indi_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
+    bxy2 = gsmr_result$bxy; bxy2_se = gsmr_result$bxy_se; bxy2_pval = gsmr_result$bxy_pval;
+    bxy2_index = gsmr_result$used_index;
+    na_snps2 = gsmr_result$na_snps;
+    weak_snps2 = gsmr_result$weak_snps;
+    linkage_snps2 = gsmr_result$linkage_snps;
+    pleio_snps2 = gsmr_result$pleio_snps;
+    return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se,
+                forward_bxy_pval=bxy1_pval, forward_index=bxy1_index,
+                reverse_bxy=bxy2, reverse_bxy_se=bxy2_se,
+                reverse_bxy_pval=bxy2_pval, reverse_index=bxy2_index,
+                forward_na_snps=na_snps1, forward_weak_snps=weak_snps1, 
+                forward_linkage_snps=linkage_snps1, forward_pleio_snps=pleio_snps1,
+                reverse_na_snps=na_snps2, reverse_weak_snps=weak_snps2,
+                reverse_linkage_snps=linkage_snps2, reverse_pleio_snps=pleio_snps2))
 }
 
