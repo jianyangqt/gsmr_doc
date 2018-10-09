@@ -36,6 +36,8 @@ This document has been integrated in the gsmr R-package, we can check it by the 
 
 ### Update log
 
+V1.0.7 ([gmr_1.0.7.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.7.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.7.pdf), 9 Oct. 2018): Add a multi-SNP-based HEIDI-outlier test in the HEIDI-outlier analysis.
+
 V1.0.6 ([gmr_1.0.6.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.6.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.6.pdf), 23 Jan. 2018): Added a function to remove SNPs in high LD.
 
 V1.0.5 ([gmr_1.0.5.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.5.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.5.pdf), 13 Dec. 2017): Improved the approximation of the sampling covariance matrix.
@@ -143,7 +145,7 @@ bzy_se = gsmr_data$bzy_se    # standard errors of bzy
 bzy_pval = gsmr_data$bzy_pval    # p-values for bzy
 n_ref = 7703    # Sample size of the reference sample
 gwas_thresh = 5e-8    # GWAS threshold to select SNPs as the instruments for the GSMR analysis
-heidi_outlier_thresh = 0.01    # HEIDI-outlier threshold
+heidi_outlier_thresh = 0.05    # HEIDI-outlier threshold
 nsnps_thresh = 10   # the minimum number of instruments required for the GSMR analysis
 heidi_outlier_flag = T    # flag for HEIDI-outlier analysis
 ld_r2_thresh = 0.1    # LD r2 threshold to remove SNPs in high LD
@@ -159,27 +161,7 @@ cat("Number of SNPs in high LD ( LD rsq >", ld_r2_thresh, "): ", length(gsmr_res
 cat("Number of pleiotropic outliers: ", length(gsmr_results$pleio_snps))
 ```
 
-### 4. HEIDI-outlier analysis
-
-The estimate of causal effect of risk factor on disease can be biased by pleiotropy ([Zhu et al. 2018 Nat. Commun](https://www.nature.com/articles/s41467-017-02317-2)). This is an analysis to detect and eliminate from the analysis instruments that show significant pleiotropic effects on both risk factor and disease. The HEIDI-outlier analysis requires bzx (effect of genetic instrument on risk factor), bzx_se (standard error of bzx), bzx_pval (p-value of bzx), bzy (effect of genetic instrument on disease), bzy_se (standard error of bzy) and ldrho (LD matrix of instruments). Note that similar to that in the GSMR analysis above, the LD matrix can be estimated from a reference sample with individual-level genotype data.
-
-**The HEIDI-outlier analysis has been integrated in the GSMR analysis above (with the heidi_outlier_flag and heidi_outlier_thresh flags).** It can also be performed separately following the example below.
-
-```{r message=FALSE, warning=FALSE}
-heidi_results = heidi_outlier(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh) # perform HEIDI-outlier analysis
-cat("Number of SNPs in high LD ( LD rsq >", ld_r2_thresh, "): ", length(gsmr_results$linkage_snps))
-cat("Number of pleiotropic outliers: ", length(heidi_results$pleio_snps))
-filtered_index = heidi_results$remain_index
-filtered_gsmr_data = gsmr_data[filtered_index,]   # select data passed HEIDI-outlier filtering
-filtered_snp_id = snp_coeff_id[filtered_index]   # select SNPs that passed HEIDI-outlier filtering
-dim(filtered_gsmr_data)
-# Number of SNPs in the gmsr_data with bzx_pval < 5e-8
-dim(gsmr_data[gsmr_data$bzx_pval < 5e-8, ])
-```
-
-In the example above, `r dim(gsmr_data[gsmr_data$bzx_pval <= 5e-8, ])[1] - dim(filtered_gsmr_data)[1]` SNPs are filtered out by HEIDI-outlier.
-
-### 5. Bi-directional GSMR analysis
+### 4. Bi-directional GSMR analysis
 
 The script below runs bi-directional GSMR analyses, i.e. a forward-GSMR analysis as described above and a reverse-GSMR analysis that uses SNPs associated with the disease (e.g. at p < 5e-8) as the instruments to test for putative causal effect of the disease on risk factor.
 

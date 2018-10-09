@@ -7,7 +7,6 @@
 # @author Jian Yang <jian.yang@uq.edu.au>
 
 eps = 1e-6
-library("survey");
 
 # ************************************************** #
 #         check data is missing or not               #
@@ -122,6 +121,7 @@ std_heidi_outlier <- function(bzx, bzx_se, bzy, bzy_se, ldrho) {
 # ************************************************** #
 #      global HEIDI-outlier                          #
 # ************************************************** #
+#' @importFrom survey pchisqsum
 global_heidi_pvalue <- function(bxy_hat, bxy_hat_se, vec_1t_v, bzx, bzx_se, bzy, bzy_se, ldrho) {
     m = length(bzx)
     # Estimate Vd matrix
@@ -410,9 +410,9 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval), SNP index (used_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
-                 heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_thresh=0.05, 
+                 heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.05,
                  nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
-    global_heidi_thresh = heidi_thresh;
+    global_heidi_thresh = heidi_outlier_thresh;
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
     len2 = length(snpid)
@@ -440,7 +440,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
         nsnp = length(bzx); kept_index = c(1:nsnp)
         while(1) {
             nsnp_iter = length(kept_index)
-            std_het_pval = std_heidi_outlier(bzx[kept_index], bzx_se[kept_index], bzy[kept_index], bzy_se[kept_index], ldrho[kept_index,kept_index])$pval_het
+            std_het_pval = std_heidi_outlier(bzx[kept_index], bzx_se[kept_index], bzy[kept_index], bzy_se[kept_index], ldrho[kept_index,kept_index])
             indi_heidi_thresh = min(c(0.01, 0.05/nsnp_iter))
             if(min(std_het_pval) >= indi_heidi_thresh) break;
             excl_index = which.min(std_het_pval)
@@ -460,13 +460,16 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
             remain_index = remain_index[-pleio_snps]
             pleio_snps = snpid[pleio_snps]
         }
+        message(length(remain_index), " SNPs were retained after the HEIDI-outlier analysis.");
     } else {
         # Estimate bxy by GSMR
+        message("Estimating bxy using all the instruments.");
         resbuf = bxy_gsmr(bzx, bzx_se, bzy, bzy_se, ldrho);
         bxy_hat = resbuf$bxy; bxy_hat_se = resbuf$bxy_se; bxy_hat_pval = resbuf$bxy_pval;
         vec_1t_v = resbuf$vec_1t_v;
         global_het_pval = global_heidi_pvalue(bxy_hat, bxy_hat_se, vec_1t_v, bzx, bzx_se, bzy, bzy_se, ldrho);
     }
+    message("GSMR analysis is completed.");
     return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,
                global_het_pval=global_het_pval, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,
                pleio_snps=pleio_snps))
