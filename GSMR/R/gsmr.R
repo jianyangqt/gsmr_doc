@@ -455,7 +455,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
         resbuf = global_heidi_outlier(bzx, bzx_se, bzy, bzy_se, ldrho, global_heidi_thresh)
         bxy_hat = resbuf$bxy; bxy_hat_se = resbuf$bxy_se; bxy_hat_pval = resbuf$bxy_pval
         global_het_pval = resbuf$pval_het;
-        if(length(resbuf$pleio_index) > 0) pleio_snps = c(pleio_snps, remain_index[resbuf$pleio_index])
+        if(length(resbuf$pleio_index) > 0) pleio_snps = c(pleio_snps, remain_index[kept_index[resbuf$pleio_index]])
         if(length(pleio_snps) > 0) {
             remain_index = remain_index[-pleio_snps]
             pleio_snps = snpid[pleio_snps]
