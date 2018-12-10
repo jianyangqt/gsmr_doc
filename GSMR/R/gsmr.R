@@ -60,6 +60,22 @@ cov_bXY <- function(bxy_i, bxy_j, bzx, bzx_se, bzy, bzy_se, ldrho) {
     return(covbXY)
 }
 
+# ************************************************** #
+#       The top SNP                                  #
+# ************************************************** #
+
+topsnp_bxy = function(bzx, bzx_se, bzy) {
+    bxy = bzy/bzx
+    bxy_q = quantile(bxy, probs = seq(0, 1, 0.2))
+    min_bxy = as.numeric(bxy_q[3]); max_bxy = as.numeric(bxy_q[4]);
+    slctindx = which(bxy <= max_bxy & bxy >= min_bxy)
+    if(length(slctindx)==0) {
+      stop("The top SNP for the HEIDI-outlier analysis is missing. None SNPs are in the third quintile of the distribution of bxy.");
+    }
+    chival = (bzx/bzx_se)^2
+    refid = slctindx[which.max(chival[slctindx])]
+    return(refid)
+}
 
 # ************************************************** #
 #       bXY by GSMR method                           #
@@ -281,8 +297,9 @@ filter_summdat <- function(snp_id, bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, n_
         stop("LD correlations between ", length(indx), " pairs of SNPs are missing. Please check the MAF of the SNPs and the missingness rate in the reference sample.")
 
     # z score of bzx
-    weak_snps = c()
-    indx = which(pZXp > pvalue_thresh)
+    weak_snps = c();
+    chival_thresh = qchisq(pvalue_thresh, 1, lower.tail=F)
+    indx = which((bZXp/seZXp)^2 < chival_thresh)
     if(length(indx)>0) {
         weak_snps = snpIDp[indx];
         bZXp = bZXp[-indx]; seZXp = seZXp[-indx]; pZXp = pZXp[-indx];
@@ -403,6 +420,7 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
 #' @param ld_r2_thresh LD r2 threshold to remove SNPs in high LD
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments 
+#' @param gsmr_beta GSMR beta version, including a new HEIDI-outlier method (used in a GSMR analysis) that is currently under development and subject to future changes, 1 - the new HEIDI-outlier method, 2 - the original HEIDI-outlier method 
 #' @examples
 #' data("gsmr")
 #' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 10, 0.1, 0.05) 
@@ -410,8 +428,9 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval), SNP index (used_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
-                 heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.05,
-                 nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
+                 heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01,
+                 nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
+    gsmr_beta = 0;
     global_heidi_thresh = heidi_outlier_thresh;
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
@@ -435,7 +454,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
       stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " SNPs are required. Note: this hard limit can be changed by the \"nsnps_thresh\".");
     }
     pleio_snps=NULL;
-    if(heidi_outlier_flag ) {
+    if(heidi_outlier_flag & gsmr_beta) {
         # Standard HEIDI-outlier
         nsnp = length(bzx); kept_index = c(1:nsnp)
         while(1) {
@@ -461,6 +480,21 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
             pleio_snps = snpid[pleio_snps]
         }
         message(length(remain_index), " SNPs were retained after the HEIDI-outlier analysis.");
+    } else if(heidi_outlier_flag & !gsmr_beta) {
+        # HEIDI-outlier in Zhu et al, 2018, NC
+        bxy = bzy/bzx;
+        topsnp_index = topsnp_bxy(bzx, bzx_pval, bzy);
+        cov_bxy = cov_bXY(bxy, bxy, bzx, bzx_se, bzy, bzy_se, ldrho);
+        d = bxy - bxy[topsnp_index]
+        var_d = diag(cov_bxy) + diag(cov_bxy)[topsnp_index] - 2*cov_bxy[topsnp_index,]
+        var_d[topsnp_index] = 1 
+        heidi_pval = pchisq(d^2/var_d, 1, lower.tail=F)
+        kept_index = which(heidi_pval >= heidi_outlier_thresh)
+        pleio_snps = remain_index[which(heidi_pval < heidi_outlier_thresh)];
+        remain_index = remain_index[kept_index]
+        message(length(remain_index), " SNPs were retained after the HEIDI-outlier analysis.");
+        resbuf = bxy_gsmr(bzx[kept_index], bzx_se[kept_index], bzy[kept_index], bzy_se[kept_index], ldrho[kept_index,kept_index]) 
+        bxy_hat = resbuf$bxy; bxy_hat_se = resbuf$bxy_se; bxy_hat_pval = resbuf$bxy_pval;
     } else {
         # Estimate bxy by GSMR
         message("Estimating bxy using all the instruments.");
@@ -470,9 +504,13 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
         global_het_pval = global_heidi_pvalue(bxy_hat, bxy_hat_se, vec_1t_v, bzx, bzx_se, bzy, bzy_se, ldrho);
     }
     message("GSMR analysis is completed.");
+    if(gsmr_beta) {
     return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,
                global_het_pval=global_het_pval, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,
-               pleio_snps=pleio_snps))
+               pleio_snps=pleio_snps)) 
+    } else {
+    return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,pleio_snps=pleio_snps)) 
+    }
 }
 
 # ************************************************** #
