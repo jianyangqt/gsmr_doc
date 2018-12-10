@@ -430,7 +430,6 @@ std_effect <- function(snp_freq, b, se, n) {
 gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
                  heidi_outlier_flag=T, gwas_thresh=5e-8, heidi_outlier_thresh=0.01,
                  nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
-    gsmr_beta = 0;
     global_heidi_thresh = heidi_outlier_thresh;
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
@@ -490,7 +489,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, n_ref,
         var_d[topsnp_index] = 1 
         heidi_pval = pchisq(d^2/var_d, 1, lower.tail=F)
         kept_index = which(heidi_pval >= heidi_outlier_thresh)
-        pleio_snps = remain_index[which(heidi_pval < heidi_outlier_thresh)];
+        pleio_snps = snpid[remain_index[which(heidi_pval < heidi_outlier_thresh)]];
         remain_index = remain_index[kept_index]
         message(length(remain_index), " SNPs were retained after the HEIDI-outlier analysis.");
         resbuf = bxy_gsmr(bzx[kept_index], bzx_se[kept_index], bzy[kept_index], bzy_se[kept_index], ldrho[kept_index,kept_index]) 
