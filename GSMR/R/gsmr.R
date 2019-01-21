@@ -418,8 +418,8 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @param n_ref sample size of the reference sample
 #' @param heidi_outlier_flag flag for HEIDI-outlier analysis
 #' @param gwas_thresh threshold p-value to select instruments from GWAS for risk factor
-#' @param single_heidi_thresh p-value threshold for single-SNP HEIDI-outlier analysis
-#' @param multi_heidi_thresh p-value threshold for multi-SNP HEIDI-outlier analysis
+#' @param single_heidi_thresh p-value threshold for single-SNP-based HEIDI-outlier analysis
+#' @param multi_heidi_thresh p-value threshold for multi-SNP-based HEIDI-outlier analysis
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
 #' @param ld_r2_thresh LD r2 threshold to remove SNPs in high LD
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments 
@@ -537,8 +537,8 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
 #' @param n_ref sample size of the reference sample
 #' @param heidi_outlier_flag flag for HEIDI-outlier analysis
 #' @param gwas_thresh threshold p-value to select  instruments from GWAS for risk factor
-#' @param single_snp_heidi_thresh p-value threshold for single-SNP HEIDI-outlier analysis
-#' @param multi_snp_heidi_thresh p-value threshold for multi-SNP HEIDI-outlier analysis
+#' @param single_snp_heidi_thresh p-value threshold for single-SNP-based HEIDI-outlier analysis
+#' @param multi_snp_heidi_thresh p-value threshold for multi-SNP-based HEIDI-outlier analysis
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
 #' @param ld_r2_thresh LD r2 threshold to remove SNPs in high LD
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments
