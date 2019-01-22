@@ -21,9 +21,9 @@ The **gsmr** R-package implements the GSMR (Generalised Summary-data-based Mende
 Zhu, Z. et al. (2018) Causal associations between risk factors and common diseases inferred from GWAS summary data. Nat. Commun. 9, 224 (https://www.nature.com/articles/s41467-017-02317-2).
 
 ## Source code
-[gsmr_${VER}.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_${VER}.tar.gz)
+[gsmr_1.0.8.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.8.tar.gz)
 
-Note: GSMR 1.0.8 includes a new HEIDI-outlier method that is currently under development and subject to future changes. Details of the new HEIDI-outlier method will be included in the next GSMR paper.
+Note: We included a new HEIDI-outlier method (as part of the GSMR analysis) in gsmr v1.0.7. However, the new HEIDI-outlier method is currently under development and subject to changes during the method development. From the current version of GSMR R package (>= version 1.0.8), we changed the default back to the original HEIDI-outlier method described in Zhu et al. ([2018 Nature Communications](https://www.nature.com/articles/s41467-017-02317-2)) and added a temporary flag ('gsmr_beta') to test the new method. The command to use this flag can be found in the tutorial below. The new HEIDI-outlier method in gsmr v1.0.8 has been tested by extensive simulations and real data analyses. We will make a formal release in our next GSMR paper.
 
 Sample data are available in [test_data.zip](http://cnsgenomics.com/software/gsmr/static/test_data.zip). This document has been integrated in the gsmr R-package, we can check it by the standard command "?function_name" in R.
 
@@ -33,24 +33,24 @@ The **gsmr** requires R >= 2.15, you can install it in R by:
 
 ```{r eval=FALSE}
 # gsmr requires the R-package(s)
-${INSTALL_PACK}
+install.packages(c('survey'));
 # install gsmr
-install.packages("http://cnsgenomics.com/software/gsmr/static/gsmr_${VER}.tar.gz",repos=NULL,type="source")
+install.packages("http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.8.tar.gz",repos=NULL,type="source")
 ```
 
 ### Update log
 
-V1.0.8 ([gmr_1.0.8.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.8.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.8.pdf), 10 Dec. 2018): Using the original HEIDI-outlier method described in [Zhu et al. (2018 Nature Communications)](https://www.nature.com/articles/s41467-017-02317-2).
+V1.0.8 ([gmr_1.0.8.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.8.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.8.pdf), 21 Jan. 2019): Added a flag 'gsmr_beta' to use a testing version of the HEIDI-outlier method.
 
-V1.0.7 ([gmr_1.0.7.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.7.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.7.pdf), 9 Oct. 2018): Add a multi-SNP-based HEIDI-outlier test in the HEIDI-outlier analysis.
+V1.0.7 ([gmr_1.0.7.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.7.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.7.pdf), 9 Oct. 2018): Added a multi-SNP-based HEIDI-outlier test in the HEIDI-outlier analysis.
 
 V1.0.6 ([gmr_1.0.6.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.6.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.6.pdf), 23 Jan. 2018): Added a function to remove SNPs in high LD.
 
 V1.0.5 ([gmr_1.0.5.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.5.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.5.pdf), 13 Dec. 2017): Improved the approximation of the sampling covariance matrix.
  
-V1.0.4 ([gsmr_1.0.4.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.4.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.4.pdf), 6 Nov. 2017): Add the bi-directional GSMR analysis. The HEIDI-outlier analysis has been integrated in the GSMR analysis by default.
+V1.0.4 ([gsmr_1.0.4.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.4.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.4.pdf), 6 Nov. 2017): Added the bi-directional GSMR analysis. The HEIDI-outlier analysis has been integrated in the GSMR analysis by default.
  
-V1.0.3 ([gsmr_1.0.3.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.3.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.3.pdf), 12 Oct. 2017): Add more example data.
+V1.0.3 ([gsmr_1.0.3.tar.gz](http://cnsgenomics.com/software/gsmr/static/gsmr_1.0.3.tar.gz) [PDF](http://cnsgenomics.com/software/gsmr/static/gsmr_doc_1.0.3.pdf), 12 Oct. 2017): Added more example data.
 
 Removed the initial versions (8 Nov 2016).
 
@@ -151,13 +151,14 @@ bzy_se = gsmr_data$bzy_se    # standard errors of bzy
 bzy_pval = gsmr_data$bzy_pval    # p-values for bzy
 n_ref = 7703    # Sample size of the reference sample
 gwas_thresh = 5e-8    # GWAS threshold to select SNPs as the instruments for the GSMR analysis
-heidi_outlier_thresh = 0.01    # HEIDI-outlier threshold
+single_snp_heidi_thresh = 0.01    # p-value threshold for single-SNP-based HEIDI-outlier analysis
+multi_snp_heidi_thresh = 0.01    # p-value threshold for multi-SNP-based HEIDI-outlier analysis
 nsnps_thresh = 10   # the minimum number of instruments required for the GSMR analysis
 heidi_outlier_flag = T    # flag for HEIDI-outlier analysis
-ld_r2_thresh = 0.1    # LD r2 threshold to remove SNPs in high LD
+ld_r2_thresh = 0.05    # LD r2 threshold to remove SNPs in high LD
 ld_fdr_thresh = 0.05   # FDR threshold to remove the chance correlations between the SNP instruments
 gsmr_beta = 0     # 0 - the original HEIDI-outlier method; 1 - the new HEIDI-outlier method that is currently under development 
-gsmr_results = gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr_beta)    # GSMR analysis 
+gsmr_results = gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr_beta)    # GSMR analysis 
 filtered_index=gsmr_results$used_index
 cat("The estimated effect of the exposure on outcome: ",gsmr_results$bxy)
 cat("Standard error of bxy: ",gsmr_results$bxy_se)
@@ -174,7 +175,7 @@ cat("Number of pleiotropic outliers: ", length(gsmr_results$pleio_snps))
 The script below runs bi-directional GSMR analyses, i.e. a forward-GSMR analysis as described above and a reverse-GSMR analysis that uses SNPs associated with the disease (e.g. at p < 5e-8) as the instruments to test for putative causal effect of the disease on risk factor.
 
 ```{r message=FALSE, warning=FALSE}
-gsmr_results = bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, heidi_outlier_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)    # GSMR analysis 
+gsmr_results = bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snp_coeff_id, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)    # GSMR analysis 
 cat("Effect of risk factor on disease: ",gsmr_results$forward_bxy)
 cat("Standard error of bxy in the forward-GSMR analysis: ",gsmr_results$forward_bxy_se)
 cat("P-value of bxy in the forward-GSMR analysis: ", gsmr_results$forward_bxy_pval)

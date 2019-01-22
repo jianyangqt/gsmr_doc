@@ -426,7 +426,7 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @param gsmr_beta GSMR beta version, including a new HEIDI-outlier method (used in a GSMR analysis) that is currently under development and subject to future changes, 1 - the new HEIDI-outlier method, 2 - the original HEIDI-outlier method 
 #' @examples
 #' data("gsmr")
-#' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.05, 10, 0.1, 0.05) 
+#' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.05, 10, 0.1, 0.05, 0) 
 #'
 #' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval), SNP index (used_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
@@ -513,7 +513,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
     message("GSMR analysis is completed.");
     if(gsmr_beta) {
     return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,
-               global_het_pval=global_het_pval, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,
+               multi_snp_het_pval=global_het_pval, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,
                pleio_snps=pleio_snps)) 
     } else {
     return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,pleio_snps=pleio_snps)) 
@@ -550,25 +550,38 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
 #' @export
 bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
                heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.05,
-               nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05) {
+               nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
     ## Forward GSMR
     message("Forward GSMR analysis...")   
-    gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
+    gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr_beta)
     bxy1 = gsmr_result$bxy; bxy1_se = gsmr_result$bxy_se; bxy1_pval = gsmr_result$bxy_pval;
     bxy1_index = gsmr_result$used_index;
     na_snps1 = gsmr_result$na_snps; weak_snps1 = gsmr_result$weak_snps; 
     linkage_snps1 = gsmr_result$linkage_snps; pleio_snps1 = gsmr_result$pleio_snps;
+    if(gsmr_beta) bxy1_het_pval = gsmr_result$multi_snp_het_pval
 
     ## Reverse GSMR
     message("Reverse GSMR analysis...")           
-    gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, bzx_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh)
+    gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, bzx_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr_beta)
     bxy2 = gsmr_result$bxy; bxy2_se = gsmr_result$bxy_se; bxy2_pval = gsmr_result$bxy_pval;
     bxy2_index = gsmr_result$used_index;
     na_snps2 = gsmr_result$na_snps; 
     weak_snps2 = gsmr_result$weak_snps; 
     linkage_snps2 = gsmr_result$linkage_snps;
     pleio_snps2 = gsmr_result$pleio_snps;
-    return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se, 
+    if(gsmr_beta) bxy2_het_pval = gsmr_result$multi_snp_het_pval
+
+    if(gsmr_beta) {
+        return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se,
+                forward_bxy_pval=bxy1_pval, forward_multi_het_pval=bxy1_het_pval, forward_index=bxy1_index,
+                reverse_bxy=bxy2, reverse_bxy_se=bxy2_se,            
+                reverse_bxy_pval=bxy2_pval, reverse_multi_het_pval=bxy2_het_pval, reverse_index=bxy2_index,
+                forward_na_snps=na_snps1, forward_weak_snps=weak_snps1, 
+                forward_linkage_snps=linkage_snps1, forward_pleio_snps=pleio_snps1,
+                reverse_na_snps=na_snps2, reverse_weak_snps=weak_snps2, 
+                reverse_linkage_snps=linkage_snps2, reverse_pleio_snps=pleio_snps2))
+    } else {
+        return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se, 
                 forward_bxy_pval=bxy1_pval, forward_index=bxy1_index,
                 reverse_bxy=bxy2, reverse_bxy_se=bxy2_se,             
                 reverse_bxy_pval=bxy2_pval, reverse_index=bxy2_index,
@@ -576,6 +589,8 @@ bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, 
                 forward_linkage_snps=linkage_snps1, forward_pleio_snps=pleio_snps1,
                 reverse_na_snps=na_snps2, reverse_weak_snps=weak_snps2, 
                 reverse_linkage_snps=linkage_snps2, reverse_pleio_snps=pleio_snps2))
+    }
 }
+
 
 
