@@ -407,7 +407,7 @@ std_effect <- function(snp_freq, b, se, n) {
 # ************************************************** #
 #' @title Generalized Summary-data-based Mendelian Randomization analysis
 #' @description GSMR (Generalised Summary-data-based Mendelian Randomisation) is a flexible and powerful approach that utilises multiple genetic instruments to test for causal association between a risk factor and disease using summary-level data from independent genome-wide association studies.
-#' @usage gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_heidi_thresh=0.01, multi_heidi_thresh=0.05, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05)
+#' @usage gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_heidi_thresh=0.01, multi_heidi_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05)
 #' @param bzx vector, SNP effects on risk factor
 #' @param bzx_se vector, standard errors of bzx
 #' @param bzx_pval vector, p values for bzx
@@ -426,12 +426,12 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @param gsmr_beta GSMR beta version, including a new HEIDI-outlier method (used in a GSMR analysis) that is currently under development and subject to future changes, 1 - the new HEIDI-outlier method, 2 - the original HEIDI-outlier method 
 #' @examples
 #' data("gsmr")
-#' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.05, 10, 0.1, 0.05, 0) 
+#' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.01, 10, 0.1, 0.05, 0) 
 #'
 #' @return Estimate of causative effect of risk factor on disease (bxy), the corresponding standard error (bxy_se), p-value (bxy_pval), SNP index (used_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
-                 heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snps_heidi_thresh = 0.05,
+                 heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snps_heidi_thresh = 0.01,
                  nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
@@ -525,7 +525,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
 # ************************************************** #
 #' @title Bi-directional GSMR analysis
 #' @description Bi-directional GSMR analysis is composed of a forward-GSMR analysis and a reverse-GSMR analysis that uses SNPs associated with the disease (e.g. at  < 5e-8) as the instruments to test for putative causal effect of the disease on the risk factor.
-#' @usage bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.05, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05)
+#' @usage bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05)
 #' @param bzx vector, SNP effects on risk factor
 #' @param bzx_se vector, standard errors of bzx
 #' @param bzx_pval vector, p values for bzx
@@ -544,12 +544,12 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments
 #' @examples
 #' data("gsmr")
-#' gsmr_result = bi_gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, gsmr_data$bzy_pval, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.05, 10, 0.05, 0.05) 
+#' gsmr_result = bi_gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, gsmr_data$bzy_pval, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.01, 10, 0.05, 0.05) 
 #'
 #' @return Estimate of causative effect of risk factor on disease (forward_bxy), the corresponding standard error (forward_bxy_se), p-value (forward_bxy_pval) and SNP index (forward_index), and estimate of causative effect of disease on risk factor (reverse_bxy), the corresponding standard error (reverse_bxy_se), p-value (reverse_bxy_pval), SNP index (reverse_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
-               heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.05,
+               heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.01,
                nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
     ## Forward GSMR
     message("Forward GSMR analysis...")   
