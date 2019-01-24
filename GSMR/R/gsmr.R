@@ -151,9 +151,7 @@ heidi_pvalue <- function(bzx, bzx_se, bzy, bzy_se, ldrho, topsnp_index, multi_sn
 #       standard HEIDI-outlier                       #
 # ************************************************** #
 topsnp_heidi <- function(bzx, bzx_se, bzy, bzy_se, bzy_pval) {
-    pval_thresh = 5e-8
-    kept_index = which(bzy_pval >= pval_thresh)
-
+    kept_index = c(1:length(bzx))
     bxy = bzy[kept_index]/bzx[kept_index];
     bxy_q = quantile(bxy, probs = seq(0, 1, 0.05))
     kept_index = kept_index[which(bxy >= bxy_q[2] & bxy <= bxy_q[length(bxy_q)-1])]
