@@ -405,7 +405,7 @@ std_effect <- function(snp_freq, b, se, n) {
 # ************************************************** #
 #' @title Generalized Summary-data-based Mendelian Randomization analysis
 #' @description GSMR (Generalised Summary-data-based Mendelian Randomisation) is a flexible and powerful approach that utilises multiple genetic instruments to test for causal association between a risk factor and disease using summary-level data from independent genome-wide association studies.
-#' @usage gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_heidi_thresh=0.01, multi_heidi_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05)
+#' @usage gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_heidi_thresh=0.01, multi_heidi_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr2_beta=0)
 #' @param bzx vector, SNP effects on risk factor
 #' @param bzx_se vector, standard errors of bzx
 #' @param bzx_pval vector, p values for bzx
@@ -421,7 +421,7 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
 #' @param ld_r2_thresh LD r2 threshold to remove SNPs in high LD
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments 
-#' @param gsmr_beta GSMR beta version, including a new HEIDI-outlier method (used in a GSMR analysis) that is currently under development and subject to future changes, 1 - the new HEIDI-outlier method, 2 - the original HEIDI-outlier method 
+#' @param gsmr2_beta GSMR2 beta version, including a new HEIDI-outlier method (used in a GSMR analysis) that is currently under development and subject to future changes, 0 - the original HEIDI-outlier method, 1 - the new HEIDI-outlier method
 #' @examples
 #' data("gsmr")
 #' gsmr_result = gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.01, 10, 0.1, 0.05, 0) 
@@ -430,7 +430,7 @@ std_effect <- function(snp_freq, b, se, n) {
 #' @export
 gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
                  heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snps_heidi_thresh = 0.01,
-                 nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
+                 nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr2_beta=0) {
     # subset of LD r matrix
     len1 = length(Reduce(intersect, list(snpid, colnames(ldrho))))
     len2 = length(snpid)
@@ -453,7 +453,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
       stop("Not enough SNPs for the GSMR analysis. At least ", nsnps_thresh, " SNPs are required. Note: this hard limit can be changed by the \"nsnps_thresh\".");
     }
     pleio_snps=NULL;
-    if(heidi_outlier_flag & gsmr_beta) {
+    if(heidi_outlier_flag & gsmr2_beta) {
         # Standard HEIDI-outlier
         nsnp = length(bzx); kept_index = c(1:nsnp)
         while(1) {
@@ -485,7 +485,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
             pleio_snps = snpid[pleio_snps]
         }
         message(length(remain_index), " SNPs were retained after the HEIDI-outlier analysis.");
-    } else if(heidi_outlier_flag & !gsmr_beta) {
+    } else if(heidi_outlier_flag & !gsmr2_beta) {
         # HEIDI-outlier in Zhu et al, 2018, NC
         bxy = bzy/bzx;
         topsnp_index = topsnp_bxy(bzx, bzx_pval, bzy);
@@ -509,7 +509,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
     resbuf = bxy_gsmr(bzx, bzx_se, bzy, bzy_se, ldrho);
     bxy_hat = resbuf$bxy; bxy_hat_se = resbuf$bxy_se; bxy_hat_pval = resbuf$bxy_pval;
     message("GSMR analysis is completed.");
-    if(gsmr_beta) {
+    if(gsmr2_beta) {
     return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,
                multi_snp_het_pval=global_het_pval, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,
                pleio_snps=pleio_snps)) 
@@ -523,7 +523,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
 # ************************************************** #
 #' @title Bi-directional GSMR analysis
 #' @description Bi-directional GSMR analysis is composed of a forward-GSMR analysis and a reverse-GSMR analysis that uses SNPs associated with the disease (e.g. at  < 5e-8) as the instruments to test for putative causal effect of the disease on the risk factor.
-#' @usage bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05)
+#' @usage bi_gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.01, nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr2_beta=0)
 #' @param bzx vector, SNP effects on risk factor
 #' @param bzx_se vector, standard errors of bzx
 #' @param bzx_pval vector, p values for bzx
@@ -540,36 +540,37 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
 #' @param nsnps_thresh the minimum number of instruments required for the GSMR analysis (we do not recommend users to set this number smaller than 10)
 #' @param ld_r2_thresh LD r2 threshold to remove SNPs in high LD
 #' @param ld_fdr_thresh FDR threshold to remove the chance correlations between SNP instruments
+#' @param gsmr2_beta GSMR2 beta version, including a new HEIDI-outlier method (used in a GSMR analysis) that is currently under development and subject to future changes, 0 - the original HEIDI-outlier method, 1 - the new HEIDI-outlier method
 #' @examples
 #' data("gsmr")
-#' gsmr_result = bi_gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, gsmr_data$bzy_pval, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.01, 10, 0.05, 0.05) 
+#' gsmr_result = bi_gsmr(gsmr_data$bzx, gsmr_data$bzx_se, gsmr_data$bzx_pval, gsmr_data$bzy, gsmr_data$bzy_se, gsmr_data$bzy_pval, ldrho, gsmr_data$SNP, n_ref, T, 5e-8, 0.01, 0.01, 10, 0.05, 0.05, 0) 
 #'
 #' @return Estimate of causative effect of risk factor on disease (forward_bxy), the corresponding standard error (forward_bxy_se), p-value (forward_bxy_pval) and SNP index (forward_index), and estimate of causative effect of disease on risk factor (reverse_bxy), the corresponding standard error (reverse_bxy_se), p-value (reverse_bxy_pval), SNP index (reverse_index), SNPs with missing values, with non-significant p-values and those in LD.
 #' @export
 bi_gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref,
                heidi_outlier_flag=T, gwas_thresh=5e-8, single_snp_heidi_thresh=0.01, multi_snp_heidi_thresh=0.01,
-               nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr_beta=0) {
+               nsnps_thresh=10, ld_r2_thresh=0.05, ld_fdr_thresh=0.05, gsmr2_beta=0) {
     ## Forward GSMR
     message("Forward GSMR analysis...")   
-    gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr_beta)
+    gsmr_result=gsmr(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr2_beta)
     bxy1 = gsmr_result$bxy; bxy1_se = gsmr_result$bxy_se; bxy1_pval = gsmr_result$bxy_pval;
     bxy1_index = gsmr_result$used_index;
     na_snps1 = gsmr_result$na_snps; weak_snps1 = gsmr_result$weak_snps; 
     linkage_snps1 = gsmr_result$linkage_snps; pleio_snps1 = gsmr_result$pleio_snps;
-    if(gsmr_beta) bxy1_het_pval = gsmr_result$multi_snp_het_pval
+    if(gsmr2_beta) bxy1_het_pval = gsmr_result$multi_snp_het_pval
 
     ## Reverse GSMR
     message("Reverse GSMR analysis...")           
-    gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, bzx_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr_beta)
+    gsmr_result=gsmr(bzy, bzy_se, bzy_pval, bzx, bzx_se, bzx_pval, ldrho, snpid, n_ref, heidi_outlier_flag, gwas_thresh, single_snp_heidi_thresh, multi_snp_heidi_thresh, nsnps_thresh, ld_r2_thresh, ld_fdr_thresh, gsmr2_beta)
     bxy2 = gsmr_result$bxy; bxy2_se = gsmr_result$bxy_se; bxy2_pval = gsmr_result$bxy_pval;
     bxy2_index = gsmr_result$used_index;
     na_snps2 = gsmr_result$na_snps; 
     weak_snps2 = gsmr_result$weak_snps; 
     linkage_snps2 = gsmr_result$linkage_snps;
     pleio_snps2 = gsmr_result$pleio_snps;
-    if(gsmr_beta) bxy2_het_pval = gsmr_result$multi_snp_het_pval
+    if(gsmr2_beta) bxy2_het_pval = gsmr_result$multi_snp_het_pval
 
-    if(gsmr_beta) {
+    if(gsmr2_beta) {
         return(list(forward_bxy=bxy1, forward_bxy_se=bxy1_se,
                 forward_bxy_pval=bxy1_pval, forward_multi_het_pval=bxy1_het_pval, forward_index=bxy1_index,
                 reverse_bxy=bxy2, reverse_bxy_se=bxy2_se,            
