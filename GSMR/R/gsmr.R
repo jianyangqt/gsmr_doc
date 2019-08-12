@@ -509,7 +509,7 @@ gsmr <- function(bzx, bzx_se, bzx_pval, bzy, bzy_se, bzy_pval, ldrho, snpid, n_r
     resbuf = bxy_gsmr(bzx, bzx_se, bzy, bzy_se, ldrho);
     bxy_hat = resbuf$bxy; bxy_hat_se = resbuf$bxy_se; bxy_hat_pval = resbuf$bxy_pval;
     message("GSMR analysis is completed.");
-    if(gsmr2_beta) {
+    if(heidi_outlier_flag & gsmr2_beta) {
     return(list(bxy=bxy_hat, bxy_se=bxy_hat_se, bxy_pval=bxy_hat_pval, used_index=remain_index,
                multi_snp_het_pval=global_het_pval, na_snps=na_snps, weak_snps=weak_snps, linkage_snps=linkage_snps,
                pleio_snps=pleio_snps)) 
